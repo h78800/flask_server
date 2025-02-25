@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>溫度監控系統</title>
+
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Chart.js & Moment.js (時間格式) -->
+    <script src="https://cdn.jsdelivr.net/npm/moment"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-moment"></script>
+    <!-- Chart.js Zoom 插件 -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+
+    <style>
+        body { background-color: #f8f9fa; }
+        h1 { text-align: center; margin-bottom: 20px; font-size: 2rem; }
+        .chart-container {
+            display: flex; align-items: center; background: white; padding: 15px;
+            border-radius: 10px; box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px; height: 250px;
+        }
+        .chart-info { width: 30%; text-align: center; }
+        .chart-info img { max-width: 80px; margin-bottom: 5px; }
+        .chart-info p { margin: 0; font-weight: bold; }
+        .chart-box { width: 70%; height: 100%; }
+        .btn-primary { color: white !important; }
+    </style>
+</head>
+
+<body>
+    <div class="container py-4">
+        <h1>即時溫度監控</h1>
+
+        <!-- 按鈕組 -->
+        <div class="d-flex justify-content-center mb-3">
+            <div class="btn-group" role="group">
+                <button id="realTime" class="btn btn-outline-primary" onclick="fetchData('realTime', this)">實時</button>
+                <button id="daily" class="btn btn-outline-primary" onclick="fetchData('daily', this)">日線</button>
+                <button id="weekly" class="btn btn-outline-primary" onclick="fetchData('weekly', this)">周線</button>
+                <button id="monthly" class="btn btn-outline-primary" onclick="fetchData('monthly', this)">月線</button>
+                <button id="resetZoom" class="btn btn-outline-secondary" onclick="resetZoom()">重置縮放</button>
+            </div>
+        </div>
+
+        <!-- T1 溫度圖表 -->
+        <div class="chart-container">
+            <div class="chart-info">
+                <img src="/static/圖片/ds18b20.png" alt="T1">
+                <p>T1 溫度</p>
+                <p id="latest-T1">--°C</p>
+            </div>
+            <div class="chart-box">
+                <canvas id="T1Chart"></canvas>
+            </div>
+        </div>
+
+        <!-- T2 溫度圖表 -->
+        <div class="chart-container">
+            <div class="chart-info">
+                <img src="/static/圖片/lm35.png" alt="T2">
+                <p>T2 溫度</p>
+                <p id="latest-T2">--°C</p>
+            </div>
+            <div class="chart-box">
+                <canvas id="T2Chart"></canvas>
+            </div>
+        </div>
+
+        <!-- T3 溫度圖表 -->
+        <div class="chart-container">
+            <div class="chart-info">
+                <img src="/static/圖片/dht11.png" alt="T3">
+                <p>T3 溫度</p>
+                <p id="latest-T3">--°C</p>
+            </div>
+            <div class="chart-box">
+                <canvas id="T3Chart"></canvas>
+            </div>
+        </div>
+
+        <!-- T4 濕度圖表 -->
+        <div class="chart-container">
+            <div class="chart-info">
+                <img src="/static/圖片/humidity.png" alt="T4">
+                <p>T4 濕度</p>
+                <p id="latest-T4">--%</p>
+            </div>
+            <div class="chart-box">
+                <canvas id="T4Chart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ✅ 全域變數儲存原始數據
+        let originalData = [];
+
+        // ✅ 獲取並顯示數據
+        function fetchData(range, btn) {
+            document.querySelectorAll('.btn-group .btn').forEach(b => b.classList.remove('btn-primary'));
+            btn.classList.add('btn-primary');
+
+            fetch(`http://192.168.2.128:5000/data?range=${range}`)
+                .then(response => response.json())
+                .then(data => {
+                    originalData = data; // 儲存原始數據
+                    updateCharts(data);  // 更新圖表
+                })
+                .catch(error => console.error("獲取數據失敗:", error));
+        }
+
+        // ✅ 更新所有圖表和最新數據
+        function updateCharts(data) {
+            const timestamps = data.map(item => new Date(item.timestamp));
+            const T1Values = data.map(item => item.T1 ?? null);
+            const T2Values = data.map(item => item.T2 ?? null);
+            const T3Values = data.map(item => item.T3 ?? null);
+            const T4Values = data.map(item => item.T4 ?? null);
+
+            // 更新最新數據顯示
+            document.getElementById("latest-T1").innerText = T1Values[0] !== null ? `${T1Values[0]}°C` : "--°C";
+            document.getElementById("latest-T2").innerText = T2Values[0] !== null ? `${T2Values[0]}°C` : "--°C";
+            document.getElementById("latest-T3").innerText = T3Values[0] !== null ? `${T3Values[0]}°C` : "--°C";
+            document.getElementById("latest-T4").innerText = T4Values[0] !== null ? `${T4Values[0]}%` : "--%";
+
+            updateChart(T1Chart, timestamps, T1Values);
+            updateChart(T2Chart, timestamps, T2Values);
+            updateChart(T3Chart, timestamps, T3Values);
+            updateChart(T4Chart, timestamps, T4Values);
+        }
+
+        // ✅ 創建圖表並啟用縮放功能
+        function createChart(canvasId, label, color) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            return new Chart(ctx, {
+                type: "line",
+                data: { labels: [], datasets: [{ label, borderColor: color, borderWidth: 2, fill: false, data: [] }] },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: "time",
+                            time: { unit: "minute", tooltipFormat: "yyyy-MM-dd HH:mm:ss", displayFormats: { minute: "HH:mm", hour: "HH:mm" } }
+                        },
+                        y: { beginAtZero: false }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                title: function (context) {
+                                    let index = context[0].dataIndex;
+                                    return new Date(context[0].chart.data.labels[index]).toLocaleString("zh-TW", {
+                                        hour12: false, year: "numeric", month: "2-digit", day: "2-digit",
+                                        hour: "2-digit", minute: "2-digit", second: "2-digit"
+                                    });
+                                },
+                                label: function (context) {
+                                    let value = context.raw;
+                                    return value !== null ? `${context.dataset.label}: ${value}` : `${context.dataset.label}: --`;
+                                }
+                            }
+                        },
+                        zoom: {  // 啟用 Zoom 插件
+                            zoom: {
+                                wheel: { enabled: true }, // 啟用滾輪縮放
+                                pinch: { enabled: true }, // 啟用觸控縮放
+                                drag: { enabled: true, mode: 'x' }, // 啟用 X 軸拖拉選取
+                                mode: 'x', // 僅在 X 軸上縮放
+                                onZoomComplete: function ({ chart }) { // 拖拉完成後觸發
+                                    const xScale = chart.scales.x;
+                                    const minTime = xScale.min; // 選取範圍的最小時間
+                                    const maxTime = xScale.max; // 選取範圍的最大時間
+                                    filterDataByRange(minTime, maxTime); // 過濾數據
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // ✅ 更新圖表數據
+        function updateChart(chart, labels, values) {
+            chart.data.labels = labels;
+            chart.data.datasets[0].data = values;
+            chart.update();
+        }
+
+        // ✅ 根據選取範圍過濾數據
+        function filterDataByRange(minTime, maxTime) {
+            const filteredData = originalData.filter(item => {
+                const timestamp = new Date(item.timestamp).getTime();
+                return timestamp >= minTime && timestamp <= maxTime;
+            });
+            updateCharts(filteredData); // 更新圖表顯示過濾後的數據
+        }
+
+        // ✅ 重置縮放
+        function resetZoom() {
+            updateCharts(originalData); // 恢復顯示原始數據
+            [T1Chart, T2Chart, T3Chart, T4Chart].forEach(chart => {
+                chart.resetZoom(); // 重置圖表縮放
+            });
+        }
+
+        // ✅ 初始化圖表
+        const T1Chart = createChart("T1Chart", "T1 溫度", "red");
+        const T2Chart = createChart("T2Chart", "T2 溫度", "blue");
+        const T3Chart = createChart("T3Chart", "T3 溫度", "green");
+        const T4Chart = createChart("T4Chart", "T4 濕度", "purple");
+
+        // ✅ 頁面載入時自動獲取即時數據
+        fetchData('realTime', document.getElementById('realTime'));
+    </script>
+</body>
+</html>
