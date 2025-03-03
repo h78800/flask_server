@@ -1,0 +1,30 @@
+
+三.常用命令
+檢查PYTHON版本   python --version   python3 --version
+刪除數據庫資料   curl -X POST http://192.168.2.90:5000/clear
+查看歷史資料     curl http://192.168.2.128:5000/data
+1.啟動虛擬環境：
+pi@RPI:~/ cd /home/pi/flask_server
+pi@RPI:~/flask_server $ source myenv/bin/activate
+2.退出虛擬環境:
+(myenv) pi@RPI:~/flask_server $  deactivate
+3.刪除虛擬環境
+(myenv) pi@RPI:~/flask_server $  deactivate     #在刪除虛擬環境之前，確保你已經退出虛擬環境。
+pi@RPI:~/flask_server $ sudo rm -rf myenv       #直接刪除該文件夾myenv即可 {-r（遞歸刪除）-f（強制刪除）}
+4.手啟動flask主程序
+(myenv) pi@RPI:~/flask_server $ python app.py
+5.手啟動waitress主程序
+(myenv) pi@RPI:~/flask_server $ python server.py
+6.編輯開機自啟服務設定檔
+sudo nano /etc/systemd/system/flask_server.service
+7.啟用systemd 系統服務管理器的開機自啟(Flask 伺服器)服務
+pi@RPI3:~/flask_server $ sudo systemctl daemon-reload         #重新載入 systemd 配置文件。
+pi@RPI3:~/flask_server $ sudo systemctl enable flask_server   #啟用systemd 所配置開機自啟服務，系統啟動時自動啟動這個服務。
+pi@RPI3:~/flask_server $ sudo systemctl start flask_server    #直接啟動flask_server服務。
+pi@RPI3:~/flask_server $ sudo systemctl stop flask_server     #直接停止flask_server服務。
+8.確認 Flask 是否在運行
+pi@RPI3:~/flask_server $ sudo systemctl status flask_server
+9.重啟樹莓派測試
+pi@RPI3:~/flask_server $ sudo reboot
+10.列出pip所有安裝套件
+pi@RPI3:~/ pip list

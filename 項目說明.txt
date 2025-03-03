@@ -1,0 +1,21 @@
+項目名稱:基於Python3.0版以上虛擬環境venv使用樹莓派建立一個動態伺服器來接收ESP8266收集的DS18B20溫度數據，並在前端網頁上呈現折線圖
+創建日期:2025.03.02
+版本: 高效版  (使用循環緩衝表Circular Buffer Table)不需要每次檢查並刪除舊數據，而是透過固定大小的表格和索引循環來自動覆蓋最舊的記錄，從而提升效率。
+描述:
+  - 這個專案的架構包括以下幾個部分(注意要Python3.0版以上)： (ssh登入使用者:pi 密碼: L8602504@sfh)
+    1. **ESP8266 + DS18B20**：ESP8266 透過 OneWire 讀取 DS18B20 溫度數據，並透過 HTTP POST  傳送數據到樹莓派。
+    2. **樹莓派 (Flask + SQLite)**：建立 Flask 伺服器，接收來自 ESP8266 的溫度數據，並存入 SQLite 資料庫。
+    3. **前端 (HTML + Chart.js)**：使用 Chart.js 繪製折線圖，從 Flask API 獲取歷史溫度數據並呈現。
+curl 模擬命令集:
+上傳溫度數據 : 
+	1.curl -X POST -d "T1=25.6&T2=26.4&T3=25.3&T4=60.3" http://192.168.2.90:5000/upload
+        2.curl -X POST -d "T1=25.6&T2=26.4&T3=&T4=" http://192.168.2.90:5000/upload
+	3.curl -X POST -d "T1=25.6" http://192.168.2.90:5000/upload
+	4.curl -X POST -d "T2=25.6" http://192.168.2.90:5000/upload
+	5.curl -X POST -d "T3=25.6" http://192.168.2.90:5000/upload
+	6.curl -X POST -d "T4=25.6" http://192.168.2.90:5000/upload
+獲取溫度數據:
+	curl -X GET "http://192.168.2.90:5000/data?range=realTime"
+清除所有數據
+	curl -X POST http://你的樹莓派IP:5000/clear
+

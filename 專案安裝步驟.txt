@@ -1,0 +1,32 @@
+一.前置作業(不含燒錄樹梅派OS)
+1.樹莓派上檢查 IP 地址
+pi@RPI:~ $ hostname -I
+2.更改系統語言為繁體中文
+pi@RPI:~ $ sudo dpkg-reconfigure locales
+3. 重啟
+pi@RPI:~ $ sudo reboot
+4.更新索引&&升級已安裝軟體
+pi@RPI:~ $ sudo apt update && sudo apt upgrade -y
+4.1檢查python版本(注意要Python3.0版以上)
+pi@RPI:~ $ python --version
+5.安裝套件(全局環境)
+pi@RPI:~ $ sudo apt install tree     #常用的工具，可以以樹狀結構顯示目錄內容。
+pi@RPI:~ $ sudo apt install python3-pip -y   #安裝pip套件
+pi@RPI:~ $ sudo apt install sqlite3          # 安裝 SQLite 命令行工具
+6.先創建一個項目資料夾
+pi@RPI:~ $ mkdir ~/flask_server
+7.導航到項目資料夾
+pi@RPI:~ $ cd ~/flask_server 
+8.在項目資料夾內創建一個虛擬環境
+pi@RPI:~/flask_server $ python3 -m venv myenv
+9.啟動虛擬環境
+pi@RPI:~/flask_server $ source myenv/bin/activate     #啟動後，終端機前面會顯示 (myenv)，代表你已進入虛擬環境。
+10.在虛擬環境中安裝這4個套件:flask flask-cors pytz(處理時間) waitress(生產環境部署)
+(myenv) pi@RPI:~/flask_server $  pip install flask flask-cors pytz waitress
+11.確認你的 Python 環境已經內建 SQLite3：
+(myenv) pi@RPI:~/flask_server $  python3 -c "import sqlite3; print(sqlite3.sqlite_version)"
+#如果成功，應該會顯示 SQLite 的版本號，例如：3.40.1
+#如果步驟11. 萬一報錯，你可能需要手動安裝 SQLite資料庫：
+sudo apt install sqlite3 libsqlite3-dev
+12.執行pip freeze指令生成requirements.txt文檔紀錄虛擬環境中使用套件支版本號(以利遷移時使用)
+(myenv) pi@RPI:~/flask_server $ pip freeze >requirements.txt

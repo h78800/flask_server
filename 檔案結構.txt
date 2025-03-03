@@ -1,0 +1,17 @@
+flask_server/
+├── app.py             #Flask 主程式
+├── server.py          # Waitress 啟動程式
+│
+├── __pycache__/       # 這是 Python 在執行程式時自動生成的可忽略可刪除
+│   ├── app.cpython-39.pyc       #運行 app.py 後生成的
+│   └── server.cpython-39.pyc    #運行 server.py 後生成的
+├── myenv/             # 虛擬環境
+├── requirements.txt    # 相依套件清單
+├── static/                     # 靜態檔案
+│   ├── index.html        #前端頁面
+│   └── 圖片            # 圖片資料夾（內含 ds18b20.png, lm35.png, dht11.png, humidity.png）
+└── temperature.db        # SQLite 資料庫(自動生成)
+
+ESP8266代碼資料夾
+├──demo_upload.ino       #模擬數據上傳
+└── 4ch_data_upload.ino       #4ch實體數據上傳

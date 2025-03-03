@@ -9,6 +9,9 @@ app = Flask(__name__)
 # 設定台灣時區
 local_tz = pytz.timezone("Asia/Taipei")
 
+# ✅ 設定循環緩衝表的最大筆數(測試時可以修改為10或100)
+MAX_RECORDS = 40000
+
 # ✅ 等待時間同步（解決 Raspberry Pi 啟動時時間不準確問題）
 def wait_for_time_sync():
     while True:
@@ -21,26 +24,50 @@ def wait_for_time_sync():
 
 wait_for_time_sync()
 
-# ✅ 初始化 SQLite 資料庫
+# ✅ 初始化 SQLite 資料庫（使用循環緩衝表）
 def init_db():
     conn = sqlite3.connect("temperature.db")
     cursor = conn.cursor()
+    
+    # 創建主數據表（固定大小）
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS sensor_data (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ds18b20 REAL,           -- 用於儲存 T1 溫度數據
-            lm35 REAL,              -- 用於儲存 T2 溫度數據
-            dht11_temp REAL,        -- 用於儲存 T3 溫度數據
-            dht11_humidity REAL,    -- 用於儲存 T4 濕度數據
-            timestamp TEXT          -- 儲存數據的時間戳
+            id INTEGER PRIMARY KEY,  -- 範圍從 0 到 MAX_RECORDS-1
+            ds18b20 REAL,            -- 用於儲存 T1 溫度數據
+            lm35 REAL,               -- 用於儲存 T2 溫度數據
+            dht11_temp REAL,         -- 用於儲存 T3 溫度數據
+            dht11_humidity REAL,     -- 用於儲存 T4 濕度數據
+            timestamp TEXT           -- 儲存數據的時間戳
         )
     """)
+    
+    # 創建索引追蹤表（儲存當前寫入位置）
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS buffer_info (
+            key TEXT PRIMARY KEY,
+            value INTEGER
+        )
+    """)
+    
+    # 初始化索引（若不存在則設為 0）
+    cursor.execute("INSERT OR IGNORE INTO buffer_info (key, value) VALUES ('current_index', 0)")
+    
+    # 預填充表格（確保有 MAX_RECORDS 筆記錄）
+    cursor.execute("SELECT COUNT(*) FROM sensor_data")
+    current_count = cursor.fetchone()[0]
+    if current_count < MAX_RECORDS:
+        for i in range(current_count, MAX_RECORDS):
+            cursor.execute(
+                "INSERT INTO sensor_data (id, ds18b20, lm35, dht11_temp, dht11_humidity, timestamp) VALUES (?, NULL, NULL, NULL, NULL, NULL)",
+                (i,)
+            )
+    
     conn.commit()
     conn.close()
 
 init_db()
 
-# ✅ 接收 ESP8266/ESP32 傳來的數據（允許部分數據缺失）
+# ✅ 接收 ESP8266/ESP32 傳來的數據（使用循環緩衝表）
 @app.route("/upload", methods=["POST"])
 def upload():
     try:
@@ -61,8 +88,13 @@ def upload():
         conn = sqlite3.connect("temperature.db")
         cursor = conn.cursor()
 
+        # 獲取當前索引
+        cursor.execute("SELECT value FROM buffer_info WHERE key = 'current_index'")
+        current_index = cursor.fetchone()[0]
+
         # 如果有最新數據，獲取前一筆記錄（用於保留未更新的值）
-        cursor.execute("SELECT ds18b20, lm35, dht11_temp, dht11_humidity FROM sensor_data ORDER BY timestamp DESC LIMIT 1")
+        prev_index = (current_index - 1) % MAX_RECORDS
+        cursor.execute("SELECT ds18b20, lm35, dht11_temp, dht11_humidity FROM sensor_data WHERE id = ?", (prev_index,))
         last_record = cursor.fetchone()
         
         # 如果有前一筆記錄，使用它作為預設值；否則設為 None
@@ -77,11 +109,16 @@ def upload():
         T3 = float(T3) if T3 else last_T3
         T4 = float(T4) if T4 else last_T4
 
-        # 插入新數據到資料庫
+        # 更新當前索引位置的數據（覆蓋舊數據）
         cursor.execute(
-            "INSERT INTO sensor_data (ds18b20, lm35, dht11_temp, dht11_humidity, timestamp) VALUES (?, ?, ?, ?, ?)",
-            (T1, T2, T3, T4, timestamp)
+            "UPDATE sensor_data SET ds18b20 = ?, lm35 = ?, dht11_temp = ?, dht11_humidity = ?, timestamp = ? WHERE id = ?",
+            (T1, T2, T3, T4, timestamp, current_index)
         )
+
+        # 更新索引（循環回到 0）
+        next_index = (current_index + 1) % MAX_RECORDS
+        cursor.execute("UPDATE buffer_info SET value = ? WHERE key = 'current_index'", (next_index,))
+        
         conn.commit()
         conn.close()
         return jsonify({"status": "success"}), 200
@@ -95,22 +132,28 @@ def get_filtered_data(range_type):
     conn = sqlite3.connect("temperature.db")
     cursor = conn.cursor()
 
+    # 獲取當前索引
+    cursor.execute("SELECT value FROM buffer_info WHERE key = 'current_index'")
+    current_index = cursor.fetchone()[0]
+
     now = datetime.now(local_tz)
     
     if range_type == 'daily':
         start_time = now.replace(hour=0, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')
-        cursor.execute("SELECT timestamp, ds18b20, lm35, dht11_temp, dht11_humidity FROM sensor_data WHERE timestamp >= ?", (start_time,))
+        cursor.execute("SELECT timestamp, ds18b20, lm35, dht11_temp, dht11_humidity FROM sensor_data WHERE timestamp >= ? AND timestamp IS NOT NULL ORDER BY timestamp", (start_time,))
     
     elif range_type == 'weekly':
         start_time = (now - timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S')
-        cursor.execute("SELECT timestamp, ds18b20, lm35, dht11_temp, dht11_humidity FROM sensor_data WHERE timestamp >= ?", (start_time,))
+        cursor.execute("SELECT timestamp, ds18b20, lm35, dht11_temp, dht11_humidity FROM sensor_data WHERE timestamp >= ? AND timestamp IS NOT NULL ORDER BY timestamp", (start_time,))
     
     elif range_type == 'monthly':
         start_time = (now - timedelta(days=30)).strftime('%Y-%m-%d %H:%M:%S')
-        cursor.execute("SELECT timestamp, ds18b20, lm35, dht11_temp, dht11_humidity FROM sensor_data WHERE timestamp >= ?", (start_time,))
+        cursor.execute("SELECT timestamp, ds18b20, lm35, dht11_temp, dht11_humidity FROM sensor_data WHERE timestamp >= ? AND timestamp IS NOT NULL ORDER BY timestamp", (start_time,))
     
     else:  # 'realTime' 預設返回最新 100 筆數據
-        cursor.execute("SELECT timestamp, ds18b20, lm35, dht11_temp, dht11_humidity FROM sensor_data ORDER BY timestamp DESC LIMIT 100")
+        # 從 current_index 往前取 100 筆
+        start_id = max(0, current_index - 100)
+        cursor.execute("SELECT timestamp, ds18b20, lm35, dht11_temp, dht11_humidity FROM sensor_data WHERE id >= ? AND id < ? AND timestamp IS NOT NULL ORDER BY id", (start_id, current_index))
 
     data = [{
         "timestamp": row[0],
@@ -129,15 +172,16 @@ def get_data():
     data = get_filtered_data(range_type)
     return jsonify(data)
 
-# ✅ 清除所有數據
+# ✅ 清除所有數據（重置循環緩衝表）
 @app.route("/clear", methods=["POST"])
 def clear_data():
     conn = sqlite3.connect("temperature.db")
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM sensor_data")
+    cursor.execute("UPDATE sensor_data SET ds18b20 = NULL, lm35 = NULL, dht11_temp = NULL, dht11_humidity = NULL, timestamp = NULL")
+    cursor.execute("UPDATE buffer_info SET value = 0 WHERE key = 'current_index'")
     conn.commit()
     conn.close()
-    return jsonify({"status": "success", "message": "All data deleted"}), 200
+    return jsonify({"status": "success", "message": "All data reset"}), 200
 
 # ✅ 提供前端網頁
 @app.route("/")
