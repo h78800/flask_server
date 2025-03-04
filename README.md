@@ -41,7 +41,7 @@
 2.  **安裝 Flask 和其他必要的套件：**
 
     ```bash
-    pip install flask
+    pip install flask flask-cors pytz waitress
     ```
 
 3.  **複製專案程式碼到樹莓派。**
