@@ -78,3 +78,22 @@ curl -X GET "http://192.168.2.90:5000/data?range=realTime"
 ```bash
 curl -X POST http://你的樹莓派IP:5000/clear
 ```
+### :file_folder: 開機自啟systemd 服務配置sudo nano /etc/systemd/system/flask_server.service 
+
+```bash
+[Unit]
+Description=Flask Server
+After=network.target
+
+[Service]
+User=pi
+WorkingDirectory=/home/pi/flask_server
+ExecStart=/home/pi/flask_server/myenv/bin/python /home/pi/flask_server/app.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+
+#注意檔案路徑正確
+```
+
