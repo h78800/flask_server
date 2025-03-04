@@ -67,3 +67,14 @@ curl -X POST -d "T1=25.6" [http://192.168.2.90:5000/upload](http://192.168.2.90:
 curl -X POST -d "T2=25.6" [http://192.168.2.90:5000/upload](http://192.168.2.90:5000/upload)
 curl -X POST -d "T3=25.6" [http://192.168.2.90:5000/upload](http://192.168.2.90:5000/upload)
 curl -X POST -d "T4=25.6" [http://192.168.2.90:5000/upload](http://192.168.2.90:5000/upload)
+```
+### 獲取溫度數據
+
+```bash
+curl -X GET "http://192.168.2.90:5000/data?range=realTime"
+```
+### 清除所有數據
+
+```bash
+curl -X POST http://你的樹莓派IP:5000/clear
+```
