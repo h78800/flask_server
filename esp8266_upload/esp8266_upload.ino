@@ -1,3 +1,8 @@
+/*
+2025/03/05 
+4ch_upload_demo
+模擬數據上傳
+*/
 #include <ESP8266WiFi.h>    // ESP8266 的 Wi-Fi 函式庫
 #include <ESP8266HTTPClient.h> // 用於發送 HTTP 請求
 #include <WiFiClient.h>     // 提供 Wi-Fi 客戶端功能
@@ -7,7 +12,7 @@ const char* ssid = "HomeAssistant1";      // 替換為您的 Wi-Fi 名稱
 const char* password = "25693927";  // 替換為您的 Wi-Fi 密碼
 
 // ✅ 伺服器設定
-const char* serverName = "http://192.168.2.128:5000/upload"; // Flask 伺服器的上傳端點
+const char* serverName = "http://192.168.2.128:5000/upload"; // 替換為您的Flask 伺服器的上傳端點
 
 // ✅ 定義模擬數據範圍
 const float T1_MIN = 20.0;  // T1 溫度最小值 (°C)
